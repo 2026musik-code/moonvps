@@ -11,13 +11,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatHistoryContainer = document.getElementById('chat-history');
 
     // GitHub Elements
-    const githubAuthContainer = document.getElementById('github-auth-container');
+    const githubLoginForm = document.getElementById('github-login-form');
     const githubRepoContainer = document.getElementById('github-repo-container');
-    const githubConnectBtn = document.getElementById('github-connect-btn');
+    const ghUsernameInput = document.getElementById('gh-username-input');
+    const ghTokenInput = document.getElementById('gh-token-input');
+    const githubSaveBtn = document.getElementById('github-save-btn');
     const githubDisconnectBtn = document.getElementById('github-disconnect-btn');
     const repoSelect = document.getElementById('repo-select');
     const ghAvatar = document.getElementById('gh-avatar');
-    const ghUsername = document.getElementById('gh-username');
+    const ghUsernameDisplay = document.getElementById('gh-username-display');
 
     let isProcessing = false;
     let currentChatId = null;
@@ -49,57 +51,105 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // GitHub Integration Logic
-    githubConnectBtn.addEventListener('click', () => {
-        window.location.href = '/api/auth/github/login';
+    // GitHub Integration Logic (Client-Side)
+    githubSaveBtn.addEventListener('click', async () => {
+        const username = ghUsernameInput.value.trim();
+        const token = ghTokenInput.value.trim();
+
+        if (!username || !token) {
+            alert('Please enter both username and token');
+            return;
+        }
+
+        // Verify credentials
+        try {
+            githubSaveBtn.textContent = 'Verifying...';
+            const res = await fetch('https://api.github.com/user', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
+            });
+
+            if (res.ok) {
+                const user = await res.json();
+                if (user.login.toLowerCase() !== username.toLowerCase()) {
+                     // Warning: Token valid but username mismatch, usually okay if token belongs to user
+                     console.warn("Username mismatch, using token's user");
+                }
+
+                // Save to localStorage
+                localStorage.setItem('gh_username', user.login);
+                localStorage.setItem('gh_token', token);
+                localStorage.setItem('gh_avatar', user.avatar_url);
+
+                checkGithubStatus();
+                githubSaveBtn.textContent = 'Connect';
+            } else {
+                alert('Invalid Token or Username');
+                githubSaveBtn.textContent = 'Connect';
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Connection failed');
+            githubSaveBtn.textContent = 'Connect';
+        }
     });
 
-    githubDisconnectBtn.addEventListener('click', async () => {
-        await fetch('/api/auth/github/logout', { method: 'POST' });
+    githubDisconnectBtn.addEventListener('click', () => {
+        localStorage.removeItem('gh_username');
+        localStorage.removeItem('gh_token');
+        localStorage.removeItem('gh_avatar');
         checkGithubStatus();
     });
 
     repoSelect.addEventListener('change', (e) => {
         selectedRepo = e.target.value;
-        // Optionally notify chat or update UI
     });
 
-    async function checkGithubStatus() {
-        try {
-            const res = await fetch('/api/auth/github/status');
-            const data = await res.json();
+    function checkGithubStatus() {
+        const username = localStorage.getItem('gh_username');
+        const token = localStorage.getItem('gh_token');
+        const avatar = localStorage.getItem('gh_avatar');
 
-            if (data.connected) {
-                githubAuthContainer.style.display = 'none';
-                githubRepoContainer.style.display = 'block';
-                ghUsername.textContent = data.user.login;
-                ghAvatar.src = data.user.avatar_url;
+        if (username && token) {
+            githubLoginForm.style.display = 'none';
+            githubRepoContainer.style.display = 'block';
+            ghUsernameDisplay.textContent = username;
+            ghAvatar.src = avatar || '';
 
-                loadRepositories();
-            } else {
-                githubAuthContainer.style.display = 'block';
-                githubRepoContainer.style.display = 'none';
-            }
-        } catch (e) {
-            console.error('Failed to check GitHub status', e);
+            loadRepositories(username, token);
+        } else {
+            githubLoginForm.style.display = 'block';
+            githubRepoContainer.style.display = 'none';
         }
     }
 
-    async function loadRepositories() {
+    async function loadRepositories(username, token) {
         try {
             repoSelect.innerHTML = '<option value="">Loading...</option>';
-            const res = await fetch('/api/github/repos');
-            const repos = await res.json();
-
-            repoSelect.innerHTML = '<option value="">Select Repository...</option>';
-            repos.forEach(repo => {
-                const option = document.createElement('option');
-                option.value = repo.full_name;
-                option.textContent = repo.full_name;
-                repoSelect.appendChild(option);
+            // Fetch repos
+            const res = await fetch(`https://api.github.com/user/repos?sort=updated&per_page=100`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
             });
+
+            if (res.ok) {
+                const repos = await res.json();
+                repoSelect.innerHTML = '<option value="">Select Repository...</option>';
+                repos.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.full_name;
+                    option.textContent = repo.full_name;
+                    repoSelect.appendChild(option);
+                });
+            } else {
+                repoSelect.innerHTML = '<option value="">Error fetching repos</option>';
+            }
         } catch (e) {
-            repoSelect.innerHTML = '<option value="">Error loading repos</option>';
+            repoSelect.innerHTML = '<option value="">Error fetching repos</option>';
             console.error(e);
         }
     }
@@ -151,10 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             chatHistory = data.messages || [];
-
-            // Check if this chat had a repo selected (metadata support would be good here)
-            // For now, assume fresh context or stored in messages?
-            // Ideally backend stores metadata.repo
             if (data.repo) {
                 selectedRepo = data.repo;
                 repoSelect.value = data.repo;
@@ -233,7 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Puter.js is not loaded.");
             }
 
-            // If repo is selected, prepend context
             let prompt = text;
             if (selectedRepo) {
                 prompt = `[Context: Repository ${selectedRepo}]\n${text}`;
@@ -243,11 +288,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             removeLoading(loadingId);
 
+            // Fix for Gemini / Variable Response Formats
             let replyText = "No response.";
-            if (response && response.message && response.message.content && response.message.content.length > 0) {
-                replyText = response.message.content[0].text;
+
+            if (response && typeof response === 'object') {
+                if (response.message && response.message.content && Array.isArray(response.message.content)) {
+                     // Standard Puter/Claude format
+                     if (response.message.content.length > 0) {
+                         replyText = response.message.content[0].text;
+                     }
+                } else if (response.text) {
+                     // Some models might return { text: "..." }
+                     replyText = response.text;
+                } else {
+                     // Fallback: try to stringify or check custom props
+                     // If it's a stream object (user mentioned stream:true in example but we don't use it),
+                     // it might have different props.
+                     // The user's example showed `puter.print(response)` working directly.
+                     // If response is a string wrapper object
+                     replyText = response.toString();
+                     if (replyText === '[object Object]') {
+                         replyText = JSON.stringify(response, null, 2);
+                     }
+                }
             } else if (typeof response === 'string') {
                 replyText = response;
+            }
+
+            // Safety check
+            if (typeof replyText !== 'string') {
+                replyText = String(replyText);
             }
 
             addMessageToUI(replyText, 'ai');
@@ -292,7 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function escapeHtml(text) {
-        return text
+        if (text === undefined || text === null) return "";
+        return String(text)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")

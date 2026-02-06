@@ -111,6 +111,23 @@ body {
     gap: 8px;
 }
 
+.sidebar-input {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    color: #fff;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.sidebar-input:focus {
+    border-color: var(--accent-color);
+}
+
 .sidebar-btn {
     width: 100%;
     padding: 8px;
@@ -144,7 +161,7 @@ body {
     border-radius: 50%;
 }
 
-#gh-username {
+#gh-username-display {
     font-size: 0.9rem;
     color: #fff;
 }

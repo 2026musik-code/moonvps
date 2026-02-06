@@ -25,15 +25,19 @@
 
         <div class="sidebar-section">
             <h3 class="sidebar-title"><i class="fa-brands fa-github"></i> GitHub</h3>
-            <div id="github-auth-container">
-                <button id="github-connect-btn" class="sidebar-btn outline">
-                    Connect Account
+
+            <div id="github-login-form">
+                <input type="text" id="gh-username-input" class="sidebar-input" placeholder="Username">
+                <input type="password" id="gh-token-input" class="sidebar-input" placeholder="Personal Access Token">
+                <button id="github-save-btn" class="sidebar-btn outline">
+                    Connect
                 </button>
             </div>
+
             <div id="github-repo-container" style="display: none;">
                 <div class="user-info">
                     <img id="gh-avatar" src="" alt="Avatar">
-                    <span id="gh-username">User</span>
+                    <span id="gh-username-display">User</span>
                 </div>
                 <select id="repo-select" class="sidebar-select">
                     <option value="">Select Repository...</option>
