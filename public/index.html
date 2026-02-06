@@ -12,6 +12,70 @@
 <body>
     <div class="background-animation"></div>
 
+    <!-- Login Overlay -->
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-box">
+            <div class="login-logo">
+                <i class="fa-solid fa-atom fa-spin-pulse"></i>
+                <span>NEXUS AI</span>
+            </div>
+            <h3>Authentication Required</h3>
+            <input type="password" id="login-key" class="login-input" placeholder="Enter Access Key or Admin Password">
+            <button id="login-btn" class="login-btn">ENTER SYSTEM</button>
+            <p id="login-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- Admin Panel Overlay -->
+    <div class="admin-overlay" id="admin-panel" style="display: none;">
+        <div class="admin-content">
+            <div class="admin-header">
+                <h3><i class="fa-solid fa-shield-halved"></i> Admin Console</h3>
+                <button id="close-admin-btn" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="admin-body">
+                <!-- Change Password -->
+                <div class="admin-section">
+                    <h4>Change Admin Password</h4>
+                    <div class="input-row">
+                        <input type="password" id="admin-new-pass" class="admin-input" placeholder="New Password">
+                        <button id="admin-update-pass-btn" class="sidebar-btn outline">Update</button>
+                    </div>
+                </div>
+
+                <!-- Create Key -->
+                <div class="admin-section">
+                    <h4>Create User Key</h4>
+                    <div class="input-row">
+                        <input type="text" id="new-key-name" class="admin-input" placeholder="Key Name">
+                        <input type="number" id="new-key-quota" class="admin-input" placeholder="Quota (e.g. 100)">
+                        <button id="create-key-btn" class="sidebar-btn outline">Create</button>
+                    </div>
+                </div>
+
+                <!-- Manage Keys -->
+                <div class="admin-section">
+                    <h4>Manage Keys</h4>
+                    <div class="keys-table-wrapper">
+                        <table id="keys-table">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Used / Quota</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Keys injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Sidebar / Navigation -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -21,6 +85,22 @@
             <button id="close-sidebar" class="icon-btn mobile-only">
                 <i class="fa-solid fa-xmark"></i>
             </button>
+        </div>
+
+        <!-- User Stats (Quota) -->
+        <div class="sidebar-section" id="user-stats-section" style="display: none;">
+            <h3 class="sidebar-title"><i class="fa-solid fa-chart-pie"></i> Usage Stats</h3>
+            <div class="stats-box">
+                <div class="stat-item">
+                    <span>Key:</span> <span id="display-key-name">...</span>
+                </div>
+                <div class="stat-item">
+                    <span>Quota:</span> <span id="display-quota">0/0</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="quota-progress" style="width: 0%"></div>
+                </div>
+            </div>
         </div>
 
         <div class="sidebar-section">
@@ -44,6 +124,13 @@
                 </select>
                 <button id="github-disconnect-btn" class="text-btn">Disconnect</button>
             </div>
+        </div>
+
+        <!-- Admin Entry -->
+        <div class="sidebar-section" id="admin-entry-section" style="display: none;">
+             <button id="open-admin-btn" class="sidebar-btn outline" style="border-color: #ff0055; color: #ff0055;">
+                <i class="fa-solid fa-lock"></i> Admin Panel
+            </button>
         </div>
 
         <div class="chat-history-header">History</div>
