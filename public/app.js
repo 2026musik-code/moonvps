@@ -323,8 +323,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(this.value === '') this.style.height = 'auto';
     });
 
+    // Send message on Ctrl+Enter
     userInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             sendMessage();
         }
