@@ -7,6 +7,8 @@
     --text-color: #e0e0e0;
     --user-msg-bg: rgba(0, 243, 255, 0.15);
     --ai-msg-bg: rgba(188, 19, 254, 0.15);
+    --code-bg: #1e1e1e;
+    --code-header-bg: #2d2d2d;
 }
 
 * {
@@ -52,6 +54,7 @@ body {
     flex-direction: column;
     box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.02);
     overflow: hidden;
+    position: relative;
 }
 
 header {
@@ -60,6 +63,7 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .logo {
@@ -103,6 +107,7 @@ main {
     flex-direction: column;
     gap: 20px;
     scroll-behavior: smooth;
+    padding-bottom: 20px;
 }
 
 .welcome-message {
@@ -128,7 +133,7 @@ main {
     position: relative;
     animation: fadeIn 0.3s ease;
     word-wrap: break-word;
-    white-space: pre-wrap;
+    /* white-space: pre-wrap;  Removed because we now handle this manually for mix of text/code */
 }
 
 @keyframes fadeIn {
@@ -141,6 +146,7 @@ main {
     background: var(--user-msg-bg);
     border: 1px solid rgba(0, 243, 255, 0.2);
     border-bottom-right-radius: 2px;
+    white-space: pre-wrap; /* Still needed for user input preservation */
 }
 
 .ai-message {
@@ -148,12 +154,71 @@ main {
     background: var(--ai-msg-bg);
     border: 1px solid rgba(188, 19, 254, 0.2);
     border-bottom-left-radius: 2px;
+    width: fit-content;
+    min-width: 200px;
+}
+
+/* Code Block Styling */
+.code-block {
+    margin: 10px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: var(--code-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+}
+
+.code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 15px;
+    background-color: var(--code-header-bg);
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #bbb;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.copy-btn {
+    background: transparent;
+    border: none;
+    color: #bbb;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8em;
+    transition: color 0.2s;
+}
+
+.copy-btn:hover {
+    color: white;
+}
+
+pre {
+    margin: 0;
+    padding: 15px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #d4d4d4;
+    white-space: pre; /* Keep code formatting */
+}
+
+.inline-code {
+    background-color: rgba(255,255,255,0.1);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: var(--accent-color);
 }
 
 .input-area {
     padding: 20px 30px;
     border-top: 1px solid var(--glass-border);
     background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
 }
 
 .input-wrapper {
@@ -174,6 +239,8 @@ textarea {
     resize: none;
     outline: none;
     transition: all 0.3s ease;
+    max-height: 150px;
+    overflow-y: auto;
 }
 
 textarea:focus {
@@ -194,6 +261,7 @@ button#send-btn {
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
 }
 
 button#send-btn:hover {
@@ -204,6 +272,7 @@ button#send-btn:hover {
 /* Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
 }
 ::-webkit-scrollbar-track {
     background: transparent;
@@ -214,4 +283,54 @@ button#send-btn:hover {
 }
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255,255,255,0.2);
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+    body {
+        /* On mobile, usually better to not force height 100vh if address bar retracts,
+           but for a chat app, fixed viewport is often desired */
+        height: 100dvh; /* dynamic viewport height */
+        align-items: flex-end; /* Push to bottom */
+        background: #000; /* Simplify background for performance */
+    }
+
+    .container {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        border-radius: 0;
+        border: none;
+    }
+
+    header {
+        padding: 15px 20px;
+    }
+
+    .logo {
+        font-size: 1.2rem;
+    }
+
+    .welcome-message h1 {
+        font-size: 2rem;
+    }
+
+    main {
+        padding: 15px;
+    }
+
+    .message {
+        max-width: 90%;
+        padding: 12px 15px;
+        font-size: 0.95rem;
+    }
+
+    .input-area {
+        padding: 15px;
+    }
+
+    button#send-btn {
+        width: 45px;
+        height: 45px;
+    }
 }

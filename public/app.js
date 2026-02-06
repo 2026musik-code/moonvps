@@ -23,6 +23,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sendBtn.addEventListener('click', sendMessage);
 
+    // Event delegation for copy buttons
+    chatContainer.addEventListener('click', (e) => {
+        if (e.target.closest('.copy-btn')) {
+            const btn = e.target.closest('.copy-btn');
+            const codeBlock = btn.closest('.code-block');
+
+            // Check if code block exists to prevent errors
+            if (!codeBlock) return;
+
+            const codeElement = codeBlock.querySelector('code');
+            if (!codeElement) return;
+
+            const code = codeElement.innerText;
+
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+    });
+
     async function sendMessage() {
         const text = userInput.value.trim();
         if (!text || isProcessing) return;
@@ -74,13 +100,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function parseMarkdown(text) {
+        // 1. Escape HTML first to prevent XSS
+        let safeText = escapeHtml(text);
+
+        const codeBlocks = [];
+
+        // 2. Extract Code Blocks and replace with placeholders
+        // Format: ```language\ncode\n```
+        safeText = safeText.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+            const language = lang || 'text';
+            const blockHtml = `
+                <div class="code-block">
+                    <div class="code-header">
+                        <span class="lang">${language}</span>
+                        <button class="copy-btn"><i class="fa-regular fa-copy"></i> Copy</button>
+                    </div>
+                    <pre><code class="language-${language}">${code}</code></pre>
+                </div>
+            `;
+            codeBlocks.push(blockHtml);
+            return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+        });
+
+        // 3. Process Inline Code
+        safeText = safeText.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+        // 4. Process Newlines (convert to <br>)
+        safeText = safeText.replace(/\n/g, '<br>');
+
+        // 5. Restore code blocks
+        safeText = safeText.replace(/__CODE_BLOCK_(\d+)__/g, (match, index) => {
+            return codeBlocks[index];
+        });
+
+        return safeText;
+    }
+
     function addMessage(text, sender) {
         const div = document.createElement('div');
         div.className = `message ${sender}-message`;
 
-        // Simple markdown parsing for code blocks could be added here,
-        // but for now we just treat as text with newlines
-        div.textContent = text;
+        if (sender === 'user') {
+            // User message: just text with newlines (escaped)
+            div.textContent = text;
+        } else {
+            // AI message: parse markdown
+            div.innerHTML = parseMarkdown(text);
+        }
 
         chatContainer.appendChild(div);
         scrollToBottom();
