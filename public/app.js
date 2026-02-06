@@ -10,19 +10,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const newChatBtn = document.getElementById('new-chat-btn');
     const chatHistoryContainer = document.getElementById('chat-history');
 
+    // GitHub Elements
+    const githubAuthContainer = document.getElementById('github-auth-container');
+    const githubRepoContainer = document.getElementById('github-repo-container');
+    const githubConnectBtn = document.getElementById('github-connect-btn');
+    const githubDisconnectBtn = document.getElementById('github-disconnect-btn');
+    const repoSelect = document.getElementById('repo-select');
+    const ghAvatar = document.getElementById('gh-avatar');
+    const ghUsername = document.getElementById('gh-username');
+
     let isProcessing = false;
     let currentChatId = null;
-    let chatHistory = []; // Array of message objects {role, content}
+    let chatHistory = [];
+    let selectedRepo = null;
 
     // Initialize
     loadChatList();
+    checkGithubStatus();
 
-    // Generate new chat ID if not present
     if (!currentChatId) {
         startNewChat();
     }
 
-    // Sidebar Toggle Logic
+    // Sidebar Logic
     function toggleSidebar() {
         sidebar.classList.toggle('open');
         sidebarOverlay.classList.toggle('active');
@@ -32,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     closeSidebarBtn.addEventListener('click', toggleSidebar);
     sidebarOverlay.addEventListener('click', toggleSidebar);
 
-    // New Chat Logic
     newChatBtn.addEventListener('click', () => {
         startNewChat();
         if (window.innerWidth <= 768) {
@@ -40,17 +49,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // GitHub Integration Logic
+    githubConnectBtn.addEventListener('click', () => {
+        window.location.href = '/api/auth/github/login';
+    });
+
+    githubDisconnectBtn.addEventListener('click', async () => {
+        await fetch('/api/auth/github/logout', { method: 'POST' });
+        checkGithubStatus();
+    });
+
+    repoSelect.addEventListener('change', (e) => {
+        selectedRepo = e.target.value;
+        // Optionally notify chat or update UI
+    });
+
+    async function checkGithubStatus() {
+        try {
+            const res = await fetch('/api/auth/github/status');
+            const data = await res.json();
+
+            if (data.connected) {
+                githubAuthContainer.style.display = 'none';
+                githubRepoContainer.style.display = 'block';
+                ghUsername.textContent = data.user.login;
+                ghAvatar.src = data.user.avatar_url;
+
+                loadRepositories();
+            } else {
+                githubAuthContainer.style.display = 'block';
+                githubRepoContainer.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Failed to check GitHub status', e);
+        }
+    }
+
+    async function loadRepositories() {
+        try {
+            repoSelect.innerHTML = '<option value="">Loading...</option>';
+            const res = await fetch('/api/github/repos');
+            const repos = await res.json();
+
+            repoSelect.innerHTML = '<option value="">Select Repository...</option>';
+            repos.forEach(repo => {
+                const option = document.createElement('option');
+                option.value = repo.full_name;
+                option.textContent = repo.full_name;
+                repoSelect.appendChild(option);
+            });
+        } catch (e) {
+            repoSelect.innerHTML = '<option value="">Error loading repos</option>';
+            console.error(e);
+        }
+    }
+
     function startNewChat() {
         currentChatId = crypto.randomUUID();
         chatHistory = [];
+        selectedRepo = null;
+        if (repoSelect) repoSelect.value = "";
+
         chatContainer.innerHTML = `
             <div class="welcome-message">
                 <h1>Welcome to NEXUS</h1>
                 <p>Advanced AI Interaction Interface</p>
             </div>
         `;
-        // We don't save the chat to the backend until the first message is sent
-        // But we should refresh the active state in the sidebar if exists
         document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
     }
 
@@ -67,8 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderChatList(chats) {
         chatHistoryContainer.innerHTML = '';
-        // Sort by timestamp if available (implementation dependent), for now assume list order
-        // Reverse to show newest top
         chats.reverse().forEach(chat => {
             const div = document.createElement('div');
             div.className = `history-item ${chat.id === currentChatId ? 'active' : ''}`;
@@ -82,15 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isProcessing) return;
         currentChatId = id;
 
-        // Update UI active state
-        document.querySelectorAll('.history-item').forEach(el => {
-            el.classList.toggle('active', el.textContent.includes(id) || false); // simplified check
-            // Actually we should re-render or better dom manipulation
-        });
-        renderChatList(Array.from(document.querySelectorAll('.history-item')).map(el => ({id: 'TODO', title: el.innerText}))); // Re-fetch recommended
-        // Better: Just fetch list again or manually toggle classes.
-        // For simplicity, let's just fetch the chat content.
-
         try {
             const res = await fetch(`/api/chat?id=${id}`);
             if (!res.ok) throw new Error('Failed to load chat');
@@ -98,7 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             chatHistory = data.messages || [];
 
-            // Re-render chat area
+            // Check if this chat had a repo selected (metadata support would be good here)
+            // For now, assume fresh context or stored in messages?
+            // Ideally backend stores metadata.repo
+            if (data.repo) {
+                selectedRepo = data.repo;
+                repoSelect.value = data.repo;
+            }
+
             chatContainer.innerHTML = '';
             chatHistory.forEach(msg => {
                 addMessageToUI(msg.content, msg.role);
@@ -119,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(this.value === '') this.style.height = 'auto';
     });
 
-    // Send message on Enter (but Shift+Enter for newline)
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -129,26 +189,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sendBtn.addEventListener('click', sendMessage);
 
-    // Event delegation for copy buttons
     chatContainer.addEventListener('click', (e) => {
         if (e.target.closest('.copy-btn')) {
             const btn = e.target.closest('.copy-btn');
             const codeBlock = btn.closest('.code-block');
-
             if (!codeBlock) return;
             const codeElement = codeBlock.querySelector('code');
             if (!codeElement) return;
 
             const code = codeElement.innerText;
-
             navigator.clipboard.writeText(code).then(() => {
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied';
                 setTimeout(() => {
                     btn.innerHTML = originalText;
                 }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
             });
         }
     });
@@ -162,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const welcome = document.querySelector('.welcome-message');
         if (welcome) welcome.style.display = 'none';
 
-        // Add User Message to UI and History
         addMessageToUI(text, 'user');
         chatHistory.push({ role: 'user', content: text });
 
@@ -171,7 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loadingId = addLoading();
 
-        // Save immediately (optimistic)
         saveCurrentChat();
 
         try {
@@ -180,18 +233,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Puter.js is not loaded.");
             }
 
-            // Prepare context for AI (optional: send history)
-            // For now, puter.ai.chat(text) is stateless unless we pass messages array?
-            // The puter.js documentation usually supports `messages: []`.
-            // However, based on the previous snippet, we used simple text.
-            // Let's stick to simple text for the prompt, but maybe puter.js
-            // has a way to accept history. If not, we just send the new prompt.
-            // Documentation implies `puter.ai.chat(messages, ...)` or `puter.ai.chat(prompt, ...)`
-            // To be safe and sophisticated, if puter supports it, we should send history.
-            // But let's stick to the working prompt method to avoid breaking changes unless we know API.
-            // We will just send the last message for now, or context string.
+            // If repo is selected, prepend context
+            let prompt = text;
+            if (selectedRepo) {
+                prompt = `[Context: Repository ${selectedRepo}]\n${text}`;
+            }
 
-            const response = await puter.ai.chat(text, { model: model });
+            const response = await puter.ai.chat(prompt, { model: model });
 
             removeLoading(loadingId);
 
@@ -202,11 +250,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 replyText = response;
             }
 
-            // Add AI Message to UI and History
             addMessageToUI(replyText, 'ai');
             chatHistory.push({ role: 'ai', content: replyText });
 
-            // Save updated history
             saveCurrentChat();
 
         } catch (error) {
@@ -219,8 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function saveCurrentChat() {
-        // Construct chat object
-        // Title is first few chars of first user message
         const firstMsg = chatHistory.find(m => m.role === 'user');
         let title = 'New Chat';
         if (firstMsg) {
@@ -231,7 +275,8 @@ document.addEventListener('DOMContentLoaded', () => {
             id: currentChatId,
             title: title,
             timestamp: Date.now(),
-            messages: chatHistory
+            messages: chatHistory,
+            repo: selectedRepo
         };
 
         try {
@@ -240,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            // Refresh list silently to update titles if it was new
             loadChatList();
         } catch (e) {
             console.error("Failed to save chat", e);

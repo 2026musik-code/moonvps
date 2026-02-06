@@ -38,6 +38,19 @@ export default {{
       }}
     }}
 
+    // GitHub Auth Routes
+    else if (path === '/api/auth/github/login') {{
+      return handleGithubLogin(env);
+    }} else if (path === '/api/auth/github/callback') {{
+      return handleGithubCallback(request, env);
+    }} else if (path === '/api/auth/github/status') {{
+      return handleGithubStatus(request);
+    }} else if (path === '/api/auth/github/logout') {{
+      return handleGithubLogout();
+    }} else if (path === '/api/github/repos') {{
+      return handleGithubRepos(request);
+    }}
+
     // Serve Static App
     if (path === '/' || path === '/index.html') {{
       const binaryString = atob("{html_b64}");
@@ -58,29 +71,18 @@ export default {{
   }},
 }};
 
+// --- R2 Logic ---
+
 async function handleListChats(env) {{
   if (!env.BUCKET) {{
     return new Response(JSON.stringify({{ error: 'R2 Bucket not configured' }}), {{ status: 500 }});
   }}
 
   try {{
-    // List objects in the bucket
-    // Note: listing returns keys, we might need metadata (title)
-    // To keep it simple: we list keys.
-    // For a real app, we might store a 'index.json' or store metadata on objects.
-    // Let's assume we list all objects.
-
     const list = await env.BUCKET.list();
     const chats = [];
 
-    // Limit to prevent too many reads if bucket is huge (pagination needed in prod)
     for (const obj of list.objects) {{
-        // Ideally we shouldn't read every object body just to get the title.
-        // A better design is storing metadata in customMetadata.
-        // Let's check customMetadata first.
-        // If not present, we might have to read body (slow) or just show ID.
-        // NOTE: env.BUCKET.list() returns objects with 'customMetadata' if available.
-
         let title = 'Chat ' + obj.key.substring(0, 8);
         if (obj.customMetadata && obj.customMetadata.title) {{
             title = obj.customMetadata.title;
@@ -125,8 +127,6 @@ async function handleSaveChat(request, env) {{
     const id = body.id;
     if (!id) return new Response('Missing ID', {{ status: 400 }});
 
-    // Save to R2
-    // We store the title in customMetadata for listing efficiency
     const title = body.title || 'Untitled Chat';
 
     await env.BUCKET.put(id, JSON.stringify(body), {{
@@ -139,6 +139,201 @@ async function handleSaveChat(request, env) {{
   }} catch (e) {{
     return new Response(JSON.stringify({{ error: e.message }}), {{ status: 500 }});
   }}
+}}
+
+// --- GitHub Auth Logic ---
+
+function handleGithubLogin(env) {{
+  const client_id = env.GITHUB_CLIENT_ID;
+  if (!client_id || client_id === "YOUR_GITHUB_CLIENT_ID") {{
+    return new Response("GitHub Client ID not configured", {{ status: 500 }});
+  }}
+
+  const redirect_uri = "https://github.com/login/oauth/authorize";
+  const params = new URLSearchParams({{
+    client_id: client_id,
+    scope: "repo user",
+  }});
+
+  return Response.redirect(`${{redirect_uri}}?${{params}}`, 302);
+}}
+
+async function handleGithubCallback(request, env) {{
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+
+  if (!code) return new Response("Missing code", {{ status: 400 }});
+
+  const client_id = env.GITHUB_CLIENT_ID;
+  const client_secret = env.GITHUB_CLIENT_SECRET;
+
+  try {{
+    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {{
+      method: "POST",
+      headers: {{
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }},
+      body: JSON.stringify({{
+        client_id,
+        client_secret,
+        code,
+      }}),
+    }});
+
+    const tokenData = await tokenResponse.json();
+    if (tokenData.error) {{
+        return new Response(tokenData.error_description || "GitHub Error", {{ status: 400 }});
+    }}
+
+    const accessToken = tokenData.access_token;
+
+    // Create a simple session cookie
+    const cookie = serialize('gh_token', accessToken, {{
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 1 week
+    }});
+
+    // Redirect to home
+    return new Response(null, {{
+        status: 302,
+        headers: {{
+            'Location': '/',
+            'Set-Cookie': cookie
+        }}
+    }});
+
+  }} catch (e) {{
+    return new Response(e.message, {{ status: 500 }});
+  }}
+}}
+
+async function handleGithubStatus(request) {{
+  const cookieHeader = request.headers.get("Cookie");
+  const cookies = parse(cookieHeader || "");
+  const token = cookies.gh_token;
+
+  if (!token) {{
+      return new Response(JSON.stringify({{ connected: false }}), {{
+          headers: {{ 'Content-Type': 'application/json' }}
+      }});
+  }}
+
+  // Verify token and get user info
+  try {{
+      const userRes = await fetch("https://api.github.com/user", {{
+          headers: {{
+              "Authorization": `Bearer ${{token}}`,
+              "User-Agent": "Nexus-AI-Worker"
+          }}
+      }});
+
+      if (!userRes.ok) {{
+          // Token invalid
+          return new Response(JSON.stringify({{ connected: false }}), {{
+            headers: {{ 'Content-Type': 'application/json' }}
+        }});
+      }}
+
+      const user = await userRes.json();
+      return new Response(JSON.stringify({{
+          connected: true,
+          user: {{ login: user.login, avatar_url: user.avatar_url }}
+      }}), {{
+          headers: {{ 'Content-Type': 'application/json' }}
+      }});
+
+  }} catch (e) {{
+      return new Response(JSON.stringify({{ connected: false, error: e.message }}), {{
+        headers: {{ 'Content-Type': 'application/json' }}
+    }});
+  }}
+}}
+
+function handleGithubLogout() {{
+    const cookie = serialize('gh_token', '', {{
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: -1
+    }});
+
+    return new Response(JSON.stringify({{ success: true }}), {{
+        headers: {{
+            'Content-Type': 'application/json',
+            'Set-Cookie': cookie
+        }}
+    }});
+}}
+
+async function handleGithubRepos(request) {{
+  const cookieHeader = request.headers.get("Cookie");
+  const cookies = parse(cookieHeader || "");
+  const token = cookies.gh_token;
+
+  if (!token) return new Response("Unauthorized", {{ status: 401 }});
+
+  try {{
+      const repoRes = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {{
+          headers: {{
+              "Authorization": `Bearer ${{token}}`,
+              "User-Agent": "Nexus-AI-Worker"
+          }}
+      }});
+
+      const repos = await repoRes.json();
+      return new Response(JSON.stringify(repos), {{
+          headers: {{ 'Content-Type': 'application/json' }}
+      }});
+
+  }} catch (e) {{
+      return new Response(e.message, {{ status: 500 }});
+  }}
+}}
+
+// Helper for minimal cookie parsing/serialization if 'cookie' package isn't available in standard worker env without npm
+// But since we are generating the file, we should include the logic or assume it is handled.
+// Wait, we can't import 'cookie' if it's not in the bundle.
+// Cloudflare Workers environment usually requires bundling (esbuild/webpack) for npm packages.
+// Since we are using a simple single-file generation approach, we must INLINE the cookie logic.
+
+function parse(str) {{
+  if (typeof str !== 'string') return {{}};
+  var obj = {{}};
+  var pairs = str.split(/; /g);
+  for (var i = 0; i < pairs.length; i++) {{
+    var pair = pairs[i].split('=');
+    obj[pair[0]] = decodeURIComponent(pair[1]);
+  }}
+  return obj;
+}}
+
+function serialize(name, val, options) {{
+    var opt = options || {{}};
+    var enc = encodeURIComponent;
+    var value = enc(val);
+    var str = name + '=' + value;
+    if (opt.maxAge) str += '; Max-Age=' + Math.floor(opt.maxAge);
+    if (opt.domain) str += '; Domain=' + opt.domain;
+    if (opt.path) str += '; Path=' + opt.path;
+    if (opt.expires) str += '; Expires=' + opt.expires.toUTCString();
+    if (opt.httpOnly) str += '; HttpOnly';
+    if (opt.secure) str += '; Secure';
+    if (opt.sameSite) {{
+        var sameSite = typeof opt.sameSite === 'string' ? opt.sameSite.toLowerCase() : opt.sameSite;
+        switch (sameSite) {{
+            case true: str += '; SameSite=Strict'; break;
+            case 'lax': str += '; SameSite=Lax'; break;
+            case 'strict': str += '; SameSite=Strict'; break;
+            case 'none': str += '; SameSite=None'; break;
+            default: throw new TypeError('option sameSite is invalid');
+        }}
+    }}
+    return str;
 }}
 """
 

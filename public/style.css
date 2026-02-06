@@ -26,7 +26,6 @@ body {
     height: 100vh;
     overflow: hidden;
     display: flex;
-    /* justify-content: center; Removed to allow sidebar layout */
     align-items: center;
     background: radial-gradient(circle at top left, #0f172a, #000);
 }
@@ -53,12 +52,13 @@ body {
     display: flex;
     flex-direction: column;
     padding: 20px;
-    position: absolute; /* Changed to absolute for off-canvas on mobile, simplified on desktop */
-    left: -300px; /* Hidden by default or specific state */
+    position: absolute;
+    left: -300px;
     top: 0;
     z-index: 1000;
     transition: left 0.3s ease;
     box-shadow: 2px 0 15px rgba(0,0,0,0.5);
+    overflow-y: auto;
 }
 
 .sidebar.open {
@@ -94,16 +94,107 @@ body {
     transform: translateY(-1px);
 }
 
+/* Sidebar Section (GitHub) */
+.sidebar-section {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.sidebar-title {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-btn {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.sidebar-btn.outline {
+    background: transparent;
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+}
+
+.sidebar-btn.outline:hover {
+    background: rgba(0, 243, 255, 0.1);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+#gh-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+}
+
+#gh-username {
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+.sidebar-select {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    color: #ddd;
+    padding: 5px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    outline: none;
+}
+
+.sidebar-select option {
+    background: #000;
+}
+
+.text-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.text-btn:hover {
+    color: #fff;
+}
+
+.chat-history-header {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 10px;
+}
+
 .chat-history {
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 5px;
 }
 
 .history-item {
-    padding: 12px 15px;
+    padding: 10px 15px;
     background: rgba(255,255,255,0.03);
     border: 1px solid transparent;
     border-radius: 8px;
@@ -160,7 +251,7 @@ body {
     box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.02);
     overflow: hidden;
     position: relative;
-    margin: auto; /* Center it */
+    margin: auto;
     transition: width 0.3s;
 }
 

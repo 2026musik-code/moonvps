@@ -1,4 +1,4 @@
-name = "moonvps"
+name = "nexus-ai"
 main = "worker.js"
 compatibility_date = "2024-04-05"
 
@@ -8,3 +8,9 @@ mode = "smart"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "vpsai"
+
+[vars]
+GITHUB_CLIENT_ID = "YOUR_GITHUB_CLIENT_ID"
+GITHUB_CLIENT_SECRET = "YOUR_GITHUB_CLIENT_SECRET"
+# Generate a random string for session security
+JWT_SECRET = "CHANGE_THIS_TO_A_LONG_RANDOM_STRING"
