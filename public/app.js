@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Simple markdown parsing for code blocks could be added here,
         // but for now we just treat as text with newlines
-        div.innerHTML = text.replace(/\n/g, '<br>');
+        div.textContent = text;
 
         chatContainer.appendChild(div);
         scrollToBottom();
