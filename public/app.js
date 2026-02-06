@@ -21,10 +21,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const ghAvatar = document.getElementById('gh-avatar');
     const ghUsernameDisplay = document.getElementById('gh-username-display');
 
+    // Commit Modal Elements
+    const commitModal = document.getElementById('commit-modal');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const commitCancelBtn = document.getElementById('commit-cancel-btn');
+    const commitConfirmBtn = document.getElementById('commit-confirm-btn');
+    const commitRepoInput = document.getElementById('commit-repo');
+    const commitPathInput = document.getElementById('commit-path');
+    const commitMessageInput = document.getElementById('commit-message');
+    const commitPreview = document.getElementById('commit-preview');
+
     let isProcessing = false;
     let currentChatId = null;
     let chatHistory = [];
     let selectedRepo = null;
+    let pendingCommitContent = null; // Content to save
 
     // Initialize
     loadChatList();
@@ -61,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Verify credentials
         try {
             githubSaveBtn.textContent = 'Verifying...';
             const res = await fetch('https://api.github.com/user', {
@@ -73,12 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok) {
                 const user = await res.json();
-                if (user.login.toLowerCase() !== username.toLowerCase()) {
-                     // Warning: Token valid but username mismatch, usually okay if token belongs to user
-                     console.warn("Username mismatch, using token's user");
-                }
-
-                // Save to localStorage
                 localStorage.setItem('gh_username', user.login);
                 localStorage.setItem('gh_token', token);
                 localStorage.setItem('gh_avatar', user.avatar_url);
@@ -153,6 +157,99 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(e);
         }
     }
+
+    // Modal Logic
+    function openCommitModal(content, detectedPath = '') {
+        if (!selectedRepo) {
+            alert('Please select a repository in the sidebar first.');
+            return;
+        }
+
+        pendingCommitContent = content;
+        commitRepoInput.value = selectedRepo;
+        commitPathInput.value = detectedPath;
+        commitPreview.textContent = content.substring(0, 500) + (content.length > 500 ? '...' : '');
+        commitModal.classList.add('active');
+    }
+
+    function closeCommitModal() {
+        commitModal.classList.remove('active');
+        pendingCommitContent = null;
+    }
+
+    closeModalBtn.addEventListener('click', closeCommitModal);
+    commitCancelBtn.addEventListener('click', closeCommitModal);
+
+    commitConfirmBtn.addEventListener('click', async () => {
+        const path = commitPathInput.value.trim();
+        const message = commitMessageInput.value.trim();
+        const token = localStorage.getItem('gh_token');
+
+        if (!path || !message) {
+            alert('Please provide a file path and commit message.');
+            return;
+        }
+
+        if (!token) {
+            alert('GitHub token missing. Please reconnect.');
+            return;
+        }
+
+        try {
+            commitConfirmBtn.textContent = 'Committing...';
+            commitConfirmBtn.disabled = true;
+
+            // 1. Check if file exists to get SHA (for update)
+            let sha = null;
+            const checkRes = await fetch(`https://api.github.com/repos/${selectedRepo}/contents/${path}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
+            });
+
+            if (checkRes.ok) {
+                const data = await checkRes.json();
+                sha = data.sha;
+            }
+
+            // 2. Create/Update File
+            // GitHub API requires Base64 content
+            // NOTE: simple btoa handles ASCII. utf-8 needs trick.
+            const contentEncoded = btoa(unescape(encodeURIComponent(pendingCommitContent)));
+
+            const payload = {
+                message: message,
+                content: contentEncoded
+            };
+            if (sha) payload.sha = sha;
+
+            const updateRes = await fetch(`https://api.github.com/repos/${selectedRepo}/contents/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github+json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (updateRes.ok) {
+                alert('File saved successfully!');
+                closeCommitModal();
+            } else {
+                const err = await updateRes.json();
+                alert(`Error saving file: ${err.message}`);
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert('Failed to commit changes.');
+        } finally {
+            commitConfirmBtn.textContent = 'Commit Changes';
+            commitConfirmBtn.disabled = false;
+        }
+    });
 
     function startNewChat() {
         currentChatId = crypto.randomUUID();
@@ -235,7 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sendBtn.addEventListener('click', sendMessage);
 
+    // Event Delegation for Copy and Save buttons
     chatContainer.addEventListener('click', (e) => {
+        // Copy Button
         if (e.target.closest('.copy-btn')) {
             const btn = e.target.closest('.copy-btn');
             const codeBlock = btn.closest('.code-block');
@@ -251,6 +350,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.innerHTML = originalText;
                 }, 2000);
             });
+        }
+
+        // Save Button
+        if (e.target.closest('.save-btn')) {
+            const btn = e.target.closest('.save-btn');
+            const codeBlock = btn.closest('.code-block');
+            if (!codeBlock) return;
+            const codeElement = codeBlock.querySelector('code');
+            if (!codeElement) return;
+
+            const code = codeElement.innerText;
+            // Attempt to detect filename from header if stored in data-attr or regex?
+            // Current parser doesn't extract filename reliably yet,
+            // but let's see if we can improve parser or just let user input it.
+            // For now, let user input it in modal.
+            openCommitModal(code);
         }
     });
 
@@ -288,24 +403,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             removeLoading(loadingId);
 
-            // Fix for Gemini / Variable Response Formats
             let replyText = "No response.";
 
             if (response && typeof response === 'object') {
                 if (response.message && response.message.content && Array.isArray(response.message.content)) {
-                     // Standard Puter/Claude format
                      if (response.message.content.length > 0) {
                          replyText = response.message.content[0].text;
                      }
                 } else if (response.text) {
-                     // Some models might return { text: "..." }
                      replyText = response.text;
                 } else {
-                     // Fallback: try to stringify or check custom props
-                     // If it's a stream object (user mentioned stream:true in example but we don't use it),
-                     // it might have different props.
-                     // The user's example showed `puter.print(response)` working directly.
-                     // If response is a string wrapper object
                      replyText = response.toString();
                      if (replyText === '[object Object]') {
                          replyText = JSON.stringify(response, null, 2);
@@ -315,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 replyText = response;
             }
 
-            // Safety check
             if (typeof replyText !== 'string') {
                 replyText = String(replyText);
             }
@@ -381,7 +487,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="code-block">
                     <div class="code-header">
                         <span class="lang">${language}</span>
-                        <button class="copy-btn"><i class="fa-regular fa-copy"></i> Copy</button>
+                        <div class="code-actions">
+                            <button class="copy-btn"><i class="fa-regular fa-copy"></i> Copy</button>
+                            <button class="save-btn"><i class="fa-brands fa-github"></i> Save</button>
+                        </div>
                     </div>
                     <pre><code class="language-${language}">${code}</code></pre>
                 </div>

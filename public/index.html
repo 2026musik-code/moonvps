@@ -55,6 +55,35 @@
     <!-- Overlay for mobile sidebar -->
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
+    <!-- GitHub Commit Modal -->
+    <div class="modal-overlay" id="commit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-brands fa-github"></i> Save to Repository</h3>
+                <button id="close-modal-btn" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Repository</label>
+                    <input type="text" id="commit-repo" class="modal-input" disabled>
+                </div>
+                <div class="input-group">
+                    <label>File Path (e.g., src/main.js)</label>
+                    <input type="text" id="commit-path" class="modal-input" placeholder="path/to/file.ext">
+                </div>
+                <div class="input-group">
+                    <label>Commit Message</label>
+                    <input type="text" id="commit-message" class="modal-input" placeholder="Update file">
+                </div>
+                <div class="code-preview" id="commit-preview"></div>
+                <div class="modal-actions">
+                    <button id="commit-cancel-btn" class="sidebar-btn outline">Cancel</button>
+                    <button id="commit-confirm-btn" class="new-chat-btn">Commit Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <div class="header-left">
