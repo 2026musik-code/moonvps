@@ -9,6 +9,8 @@
     --ai-msg-bg: rgba(188, 19, 254, 0.15);
     --code-bg: #1e1e1e;
     --code-header-bg: #2d2d2d;
+    --sidebar-bg: #0a0a10;
+    --sidebar-width: 260px;
 }
 
 * {
@@ -24,7 +26,7 @@ body {
     height: 100vh;
     overflow: hidden;
     display: flex;
-    justify-content: center;
+    /* justify-content: center; Removed to allow sidebar layout */
     align-items: center;
     background: radial-gradient(circle at top left, #0f172a, #000);
 }
@@ -42,8 +44,111 @@ body {
     filter: blur(40px);
 }
 
+/* Sidebar Styles */
+.sidebar {
+    width: var(--sidebar-width);
+    height: 100%;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    position: absolute; /* Changed to absolute for off-canvas on mobile, simplified on desktop */
+    left: -300px; /* Hidden by default or specific state */
+    top: 0;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    box-shadow: 2px 0 15px rgba(0,0,0,0.5);
+}
+
+.sidebar.open {
+    left: 0;
+}
+
+.sidebar-header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.new-chat-btn {
+    width: 100%;
+    padding: 10px;
+    background: linear-gradient(135deg, var(--accent-color), #00a8ff);
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.new-chat-btn:hover {
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.chat-history {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-item {
+    padding: 12px 15px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+.history-item:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+}
+
+.history-item.active {
+    border-color: var(--accent-color);
+    background: rgba(0, 243, 255, 0.05);
+    color: var(--accent-color);
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(3px);
+    z-index: 900;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Container Styles */
 .container {
-    width: 95%;
+    width: 95%; /* Default fallback */
     max-width: 1200px;
     height: 90vh;
     background: var(--glass-bg);
@@ -55,6 +160,8 @@ body {
     box-shadow: 0 0 50px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.02);
     overflow: hidden;
     position: relative;
+    margin: auto; /* Center it */
+    transition: width 0.3s;
 }
 
 header {
@@ -64,6 +171,31 @@ header {
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 5px;
+    transition: background 0.2s;
+}
+
+.icon-btn:hover {
+    background: rgba(255,255,255,0.1);
 }
 
 .logo {
@@ -133,7 +265,6 @@ main {
     position: relative;
     animation: fadeIn 0.3s ease;
     word-wrap: break-word;
-    /* white-space: pre-wrap;  Removed because we now handle this manually for mix of text/code */
 }
 
 @keyframes fadeIn {
@@ -146,7 +277,7 @@ main {
     background: var(--user-msg-bg);
     border: 1px solid rgba(0, 243, 255, 0.2);
     border-bottom-right-radius: 2px;
-    white-space: pre-wrap; /* Still needed for user input preservation */
+    white-space: pre-wrap;
 }
 
 .ai-message {
@@ -203,7 +334,7 @@ pre {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 0.9em;
     color: #d4d4d4;
-    white-space: pre; /* Keep code formatting */
+    white-space: pre;
 }
 
 .inline-code {
@@ -285,14 +416,16 @@ button#send-btn:hover {
     background: rgba(255,255,255,0.2);
 }
 
+.mobile-only {
+    display: none;
+}
+
 /* Responsive Design */
 @media screen and (max-width: 768px) {
     body {
-        /* On mobile, usually better to not force height 100vh if address bar retracts,
-           but for a chat app, fixed viewport is often desired */
-        height: 100dvh; /* dynamic viewport height */
-        align-items: flex-end; /* Push to bottom */
-        background: #000; /* Simplify background for performance */
+        height: 100dvh;
+        align-items: flex-end;
+        background: #000;
     }
 
     .container {
@@ -332,5 +465,9 @@ button#send-btn:hover {
     button#send-btn {
         width: 45px;
         height: 45px;
+    }
+
+    .mobile-only {
+        display: flex;
     }
 }
