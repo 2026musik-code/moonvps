@@ -512,10 +512,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function sendMessage() {
         const text = userInput.value.trim();
-        // Allow sending if image is present even if text is empty (but typically prompt needed for AI)
         if ((!text && !pendingImage) || isProcessing) return;
 
-        // Check Quota Logic
         if (!isAdmin) {
             try {
                 const statusRes = await fetch('/api/user/status', {
@@ -535,15 +533,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const welcome = document.querySelector('.welcome-message');
         if (welcome) welcome.style.display = 'none';
 
-        // Capture current image state
         const sentImage = pendingImage;
+        const model = modelSelect.value;
 
+        // Image Generation Mode
+        if (model === 'gemini-3-pro-image-preview') {
+            addMessageToUI(text, 'user');
+            chatHistory.push({ role: 'user', content: text });
+
+            userInput.value = ''; userInput.style.height = 'auto';
+            const loadingId = addLoading();
+            saveCurrentChat();
+
+            try {
+                if (typeof puter === 'undefined') throw new Error("Puter.js not loaded.");
+
+                // Call txt2img
+                const imageElement = await puter.ai.txt2img(text, { model: model });
+                removeLoading(loadingId);
+
+                if (imageElement && imageElement.src) {
+                    let imageSrc = imageElement.src;
+
+                    // If Blob, convert to Base64 for persistence
+                    if (imageSrc.startsWith('blob:')) {
+                        const blob = await fetch(imageSrc).then(r => r.blob());
+                        const reader = new FileReader();
+                        imageSrc = await new Promise((resolve) => {
+                            reader.onload = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                    }
+
+                    addMessageToUI("Generated Image:", 'ai', imageSrc);
+                    chatHistory.push({ role: 'ai', content: "Generated Image", image: imageSrc });
+                } else {
+                    addMessageToUI("Failed to generate image.", 'ai');
+                }
+
+                saveCurrentChat();
+                if (!isAdmin) await incrementUsage();
+
+            } catch (error) {
+                removeLoading(loadingId);
+                addMessageToUI(`Error: ${error.message}`, 'ai');
+            } finally {
+                isProcessing = false;
+            }
+            return;
+        }
+
+        // Standard Chat Mode
         addMessageToUI(text, 'user', sentImage);
         chatHistory.push({ role: 'user', content: text, image: sentImage });
 
         userInput.value = ''; userInput.style.height = 'auto';
-
-        // Clear pending image
         pendingImage = null;
         imagePreviewContainer.style.display = 'none';
         imageInput.value = '';
@@ -552,14 +596,12 @@ document.addEventListener('DOMContentLoaded', () => {
         saveCurrentChat();
 
         try {
-            const model = modelSelect.value;
             if (typeof puter === 'undefined') throw new Error("Puter.js not loaded.");
             let prompt = text;
             if (selectedRepo) prompt = `[Context: Repository ${selectedRepo}]\n${text}`;
 
             let response;
             if (sentImage) {
-                // Pass image as second argument if present
                 response = await puter.ai.chat(prompt, sentImage, { model: model });
             } else {
                 response = await puter.ai.chat(prompt, { model: model });
@@ -580,21 +622,22 @@ document.addEventListener('DOMContentLoaded', () => {
             chatHistory.push({ role: 'ai', content: replyText });
             saveCurrentChat();
 
-            // Increment Usage
-            if (!isAdmin) {
-                const useRes = await fetch('/api/user/usage', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: currentUserKey })
-                });
-                const useData = await useRes.json();
-                updateQuotaDisplay(useData.quota, useData.used);
-            }
+            if (!isAdmin) await incrementUsage();
 
         } catch (error) {
             removeLoading(loadingId);
             addMessageToUI(`Error: ${error.message}`, 'ai');
         } finally { isProcessing = false; }
+    }
+
+    async function incrementUsage() {
+        const useRes = await fetch('/api/user/usage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: currentUserKey })
+        });
+        const useData = await useRes.json();
+        updateQuotaDisplay(useData.quota, useData.used);
     }
 
     async function saveCurrentChat() {
@@ -635,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let contentHtml = '';
 
         if (image) {
-            contentHtml += `<img src="${image}" class="message-image" alt="User Upload">`;
+            contentHtml += `<img src="${image}" class="message-image" alt="Content">`;
         }
 
         if (sender === 'user') {
