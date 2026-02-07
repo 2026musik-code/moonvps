@@ -568,6 +568,36 @@ body {
     gap: 10px;
 }
 
+/* Model List */
+.model-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.model-item {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 500;
+}
+
+.model-item:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.model-item.active {
+    border-color: var(--accent-color);
+    background: rgba(0, 243, 255, 0.1);
+    color: var(--accent-color);
+}
+
 /* Container Styles */
 .container {
     width: 95%; /* Default fallback */
@@ -631,26 +661,35 @@ header {
     text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
 }
 
-.model-selector select {
+.model-selector-btn-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+#model-menu-btn {
     background: rgba(0,0,0,0.3);
     border: 1px solid var(--accent-color);
     color: var(--accent-color);
-    padding: 8px 15px;
+    padding: 8px 20px;
     border-radius: 5px;
     font-family: 'Rajdhani', sans-serif;
-    font-weight: 600;
+    font-weight: 700;
     outline: none;
     cursor: pointer;
     transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
-.model-selector select:hover {
+#model-menu-btn:hover {
     box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
 }
 
-.model-selector option {
-    background-color: #000;
-    color: var(--accent-color);
+#current-model-label {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 5px;
 }
 
 main {

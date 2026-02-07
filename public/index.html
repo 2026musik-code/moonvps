@@ -171,6 +171,21 @@
         </div>
     </div>
 
+    <!-- Model Selection Modal -->
+    <div class="modal-overlay" id="model-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-microchip"></i> Select AI Model</h3>
+                <button id="close-model-btn" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="model-list" id="model-list">
+                    <!-- Models injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <div class="header-left">
@@ -182,17 +197,9 @@
                     <span>NEXUS AI</span>
                 </div>
             </div>
-            <div class="model-selector">
-                <select id="model-select">
-                    <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
-                    <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                    <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
-                    <option value="gemini-3-pro-preview">Gemini 3 Pro</option>
-                    <option value="gemini-3-pro-image-preview">Gemini 3 Image Gen</option>
-                    <option value="gemini-2.5-flash-image-preview">Gemini 2.5 Flash Image Gen</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                </select>
+            <div class="model-selector-btn-wrapper">
+                <button id="model-menu-btn">MODEL AI</button>
+                <span id="current-model-label">Claude Haiku 4.5</span>
             </div>
         </header>
 
