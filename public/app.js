@@ -83,51 +83,17 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', type: 'chat' },
         { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', type: 'chat' },
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', type: 'chat' },
+        // Kimi Models
+        { id: 'moonshotai/kimi-dev-72b', name: 'Kimi Dev 72B', type: 'chat' },
+        { id: 'moonshotai/kimi-k2', name: 'Kimi K2', type: 'chat' },
+        { id: 'moonshotai/kimi-k2-0905', name: 'Kimi K2 0905', type: 'chat' },
+        { id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', type: 'chat' },
+        { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', type: 'chat' },
         // Image Generation Models
         {
             id: 'gemini-2.5-flash-image-preview',
             name: 'Gemini 2.5 Flash (Img2Img)',
             type: 'image',
-            // Uses standard behavior (no extra provider params needed for basic usage)
-        },
-        {
-            id: 'ByteDance-Seed/Seedream-4.0',
-            name: 'Seedream 4.0 (Image Gen)',
-            type: 'image',
-            options: {
-                provider: "together-ai",
-                disable_safety_checker: true,
-                width: 960,
-                height: 960,
-                seed: 42
-            }
-        },
-        {
-            id: 'google/imagen-4.0-ultra',
-            name: 'Imagen 4 Ultra',
-            type: 'image',
-            options: {
-                provider: "together-ai",
-                disable_safety_checker: true
-            }
-        },
-        {
-            id: 'google/imagen-4.0-fast',
-            name: 'Imagen 4 Fast',
-            type: 'image',
-            options: {
-                provider: "together-ai",
-                disable_safety_checker: true
-            }
-        },
-        {
-            id: 'google/imagen-4.0-preview',
-            name: 'Imagen 4 Preview',
-            type: 'image',
-            options: {
-                provider: "together-ai",
-                disable_safety_checker: true
-            }
         }
     ];
     let selectedModel = 'claude-haiku-4-5';
