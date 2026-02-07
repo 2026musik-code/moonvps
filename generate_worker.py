@@ -56,6 +56,8 @@ export default {{
         return await handleGetChat(request, env);
       }} else if (request.method === 'POST') {{
         return await handleSaveChat(request, env);
+      }} else if (request.method === 'DELETE') {{
+        return await handleDeleteChat(request, env);
       }}
     }}
 
@@ -111,8 +113,6 @@ async function saveUsersDB(env, data) {{
 
 async function verifyKey(request, env) {{
     // Extract key from header or query or body
-    // Simplified: passing key in body for most actions, query for GET
-    // Or Authorization Header: Bearer <key>
     const auth = request.headers.get('Authorization');
     if (!auth) return null;
     const key = auth.replace('Bearer ', '').trim();
@@ -226,25 +226,15 @@ async function handleUserUsage(req, env) {{
     return jsonResp({{ error: 'Invalid key' }}, 401);
 }}
 
-// Chat handlers adapted for Auth
+// Chat handlers
 async function handleListChats(req, env) {{
     const url = new URL(req.url);
     const key = url.searchParams.get('key');
 
-    // Auth check simplified: verify against DB or Admin
     const admin = await getAdminConfig(env);
     let prefix = '';
 
     if (key === admin.password) {{
-        // Admin sees all? Or admin has own space?
-        // Let's say Admin sees everything or just 'admin/' prefix.
-        // For simplicity, Admin is just another user effectively for chat storage currently,
-        // OR we prefix user chats with their key to separate them.
-        // CURRENT IMPLEMENTATION: Shared bucket.
-        // FIX: Prefix keys with user key.
-        // For backward compatibility with existing "No Auth" chats, we might have issues.
-        // Let's assume we start fresh or migration not needed for demo.
-        // We will prefix objects with `${{key}}/`.
         prefix = key + '/';
     }} else {{
         const users = await getUsersDB(env);
@@ -260,9 +250,6 @@ async function handleListChats(req, env) {{
         if (obj.customMetadata && obj.customMetadata.title) {{
             title = obj.customMetadata.title;
         }}
-
-        // ID returned to frontend should strip prefix or keep it?
-        // Keep it to be safe for GET.
         chats.push({{
             id: obj.key,
             title: title,
@@ -278,12 +265,10 @@ async function handleGetChat(req, env) {{
     const id = url.searchParams.get('id');
     const key = url.searchParams.get('key');
 
-    // Basic Auth Check
     const admin = await getAdminConfig(env);
     const users = await getUsersDB(env);
     if (key !== admin.password && !users[key]) return jsonResp({{ error: 'Unauthorized' }}, 401);
 
-    // Access Control: Ensure ID starts with Key (User Isolation)
     if (!id.startsWith(key + '/')) return jsonResp({{ error: 'Access Denied' }}, 403);
 
     const object = await env.BUCKET.get(id);
@@ -296,25 +281,33 @@ async function handleSaveChat(req, env) {{
     const body = await req.json();
     const key = body.key;
 
-    // Auth
     const admin = await getAdminConfig(env);
     const users = await getUsersDB(env);
     if (key !== admin.password && !users[key]) return jsonResp({{ error: 'Unauthorized' }}, 401);
 
-    // Check ID prefix
     let id = body.id;
     if (!id.startsWith(key + '/')) {{
-        // If coming from old client or fresh ID, prefix it
-        // If ID is just UUID, prepend.
-        // If ID is already prefixed (update), verify.
-        if (id.includes('/')) {{
-             return jsonResp({{ error: 'Invalid ID path' }}, 400);
-        }}
+        if (id.includes('/')) return jsonResp({{ error: 'Invalid ID path' }}, 400);
         id = key + '/' + id;
     }}
 
     const title = body.title || 'Untitled';
     await env.BUCKET.put(id, JSON.stringify(body), {{ customMetadata: {{ title }} }});
+    return jsonResp({{ success: true }});
+}}
+
+async function handleDeleteChat(req, env) {{
+    const url = new URL(req.url);
+    const id = url.searchParams.get('id');
+    const key = url.searchParams.get('key');
+
+    const admin = await getAdminConfig(env);
+    const users = await getUsersDB(env);
+    if (key !== admin.password && !users[key]) return jsonResp({{ error: 'Unauthorized' }}, 401);
+
+    if (!id.startsWith(key + '/')) return jsonResp({{ error: 'Access Denied' }}, 403);
+
+    await env.BUCKET.delete(id);
     return jsonResp({{ success: true }});
 }}
 """

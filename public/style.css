@@ -117,6 +117,42 @@ body {
     font-size: 0.9rem;
 }
 
+.login-socials {
+    margin-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 15px;
+}
+
+.login-socials p {
+    color: #888;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+}
+
+.social-icons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.social-btn {
+    font-size: 1.5rem;
+    color: #fff;
+    transition: transform 0.2s, color 0.2s;
+}
+
+.social-btn:hover {
+    transform: scale(1.1);
+}
+
+.social-btn.whatsapp:hover {
+    color: #25D366;
+}
+
+.social-btn.telegram:hover {
+    color: #0088cc;
+}
+
 /* Admin Panel */
 .admin-overlay {
     position: fixed;
@@ -447,6 +483,9 @@ body {
     text-overflow: ellipsis;
     font-size: 0.9rem;
     color: #aaa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .history-item:hover {
@@ -458,6 +497,25 @@ body {
     border-color: var(--accent-color);
     background: rgba(0, 243, 255, 0.05);
     color: var(--accent-color);
+}
+
+.delete-chat-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 2px 5px;
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.history-item:hover .delete-chat-btn {
+    opacity: 1;
+}
+
+.delete-chat-btn:hover {
+    color: #ff4444;
 }
 
 .sidebar-overlay {
@@ -726,6 +784,22 @@ main {
     position: relative;
     animation: fadeIn 0.3s ease;
     word-wrap: break-word;
+}
+
+/* Markdown Styles */
+.message h1, .message h2, .message h3 {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    color: var(--accent-color);
+}
+
+.message ul, .message ol {
+    margin-left: 20px;
+    margin-bottom: 10px;
+}
+
+.message strong {
+    color: #fff;
 }
 
 @keyframes fadeIn {

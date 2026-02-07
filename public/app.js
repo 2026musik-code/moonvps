@@ -515,7 +515,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadChatList() {
-        // This requires auth now
         try {
             const res = await fetch(`/api/chats?key=${currentUserKey}`);
             if (res.ok) {
@@ -530,10 +529,43 @@ document.addEventListener('DOMContentLoaded', () => {
         chats.reverse().forEach(chat => {
             const div = document.createElement('div');
             div.className = `history-item ${chat.id === currentChatId ? 'active' : ''}`;
-            div.innerHTML = `<i class="fa-regular fa-message"></i> ${chat.title || 'New Chat'}`;
+
+            // Create title span
+            const titleSpan = document.createElement('span');
+            titleSpan.innerHTML = `<i class="fa-regular fa-message"></i> ${chat.title || 'New Chat'}`;
+
+            // Create delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-chat-btn';
+            deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+            deleteBtn.title = "Delete Chat";
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation(); // Prevent chat load
+                deleteChat(chat.id);
+            };
+
+            div.appendChild(titleSpan);
+            div.appendChild(deleteBtn);
             div.onclick = () => loadChat(chat.id);
             chatHistoryContainer.appendChild(div);
         });
+    }
+
+    async function deleteChat(id) {
+        if (!confirm("Are you sure you want to delete this chat?")) return;
+        try {
+            const res = await fetch(`/api/chat?id=${id}&key=${currentUserKey}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                loadChatList();
+                if (currentChatId === id) startNewChat();
+            } else {
+                alert("Failed to delete chat.");
+            }
+        } catch (e) {
+            console.error("Delete failed", e);
+        }
     }
 
     async function loadChat(id) {
@@ -743,6 +775,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function parseMarkdown(text) {
+        // Use marked.js if available, otherwise fallback
+        if (typeof marked !== 'undefined') {
+            // Configure marked for code blocks to add our buttons (post-process or custom renderer)
+            // Easier to post-process the HTML string
+            let html = marked.parse(text);
+
+            // Inject buttons into <pre><code> blocks
+            // This is a simple regex replacement to wrap <pre>... in our structure
+            // Regex match <pre><code class="...">...</code></pre>
+            // We need to extract the language class
+
+            // Standard marked output: <pre><code class="language-js">...</code></pre>
+
+            html = html.replace(/<pre><code class="language-([^"]+)">([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
+                return `
+                <div class="code-block">
+                    <div class="code-header">
+                        <span class="lang">${lang}</span>
+                        <div class="code-actions">
+                            <button class="copy-btn"><i class="fa-regular fa-copy"></i> Copy</button>
+                            <button class="save-btn"><i class="fa-brands fa-github"></i> Save</button>
+                        </div>
+                    </div>
+                    <pre><code class="language-${lang}">${code}</code></pre>
+                </div>`;
+            });
+
+            // Handle plain <pre><code> (no language)
+            html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (match, code) => {
+                return `
+                <div class="code-block">
+                    <div class="code-header">
+                        <span class="lang">text</span>
+                        <div class="code-actions">
+                            <button class="copy-btn"><i class="fa-regular fa-copy"></i> Copy</button>
+                            <button class="save-btn"><i class="fa-brands fa-github"></i> Save</button>
+                        </div>
+                    </div>
+                    <pre><code>${code}</code></pre>
+                </div>`;
+            });
+
+            return html;
+        }
+
+        // Fallback (should not happen if CDN loads)
         let safeText = escapeHtml(text);
         const codeBlocks = [];
         safeText = safeText.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
