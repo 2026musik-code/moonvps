@@ -3,6 +3,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatContainer = document.getElementById('chat-container');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
+    const attachBtn = document.getElementById('attach-btn');
+    const imageInput = document.getElementById('image-input');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const removeImageBtn = document.getElementById('remove-image-btn');
+
     const modelSelect = document.getElementById('model-select');
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
@@ -61,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let chatHistory = [];
     let selectedRepo = null;
     let pendingCommitContent = null;
+    let pendingImage = null; // Base64 data URI
 
     // Auth State
     let currentUserKey = localStorage.getItem('nexus_key');
@@ -75,6 +82,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show login
         loginOverlay.style.display = 'flex';
     }
+
+    // --- Image Logic ---
+    attachBtn.addEventListener('click', () => {
+        imageInput.click();
+    });
+
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                pendingImage = e.target.result;
+                imagePreview.src = pendingImage;
+                imagePreviewContainer.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    removeImageBtn.addEventListener('click', () => {
+        pendingImage = null;
+        imagePreviewContainer.style.display = 'none';
+        imageInput.value = '';
+    });
 
     // --- Auth Logic ---
 
@@ -173,8 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderKeysTable(keys) {
         keysTableBody.innerHTML = '';
-        // Convert obj to array if needed, but endpoint returns list
-        // Backend should return list of objects {key, quota, used}
         keys.forEach(k => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -189,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Global exposure for onclick handlers in table
     window.deleteKey = async (key) => {
         if (!confirm(`Delete key ${key}?`)) return;
         await fetch('/api/admin/keys', {
@@ -204,13 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.resetKeyUsage = async (key) => {
-        // To reset usage, we can update the key with used=0
-        // Or specific endpoint. Let's use update flow.
-        // We need current quota first? Let's just assume we can send partial update or create logic.
-        // Simplified: delete and recreate or add update endpoint.
-        // Backend handles update if key exists.
-        // We need to ask for new quota or keep existing?
-        // Let's implement a simple "Extend" or just create with same name updates it.
         const newQuota = prompt("Enter new quota:", "100");
         if (!newQuota) return;
 
@@ -455,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 chatHistory = data.messages || [];
                 if (data.repo) { selectedRepo = data.repo; repoSelect.value = data.repo; }
                 chatContainer.innerHTML = '';
-                chatHistory.forEach(msg => addMessageToUI(msg.content, msg.role));
+                chatHistory.forEach(msg => addMessageToUI(msg.content, msg.role, msg.image));
                 if (window.innerWidth <= 768) toggleSidebar();
             }
         } catch (err) { console.error(err); }
@@ -491,16 +512,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function sendMessage() {
         const text = userInput.value.trim();
-        if (!text || isProcessing) return;
+        // Allow sending if image is present even if text is empty (but typically prompt needed for AI)
+        if ((!text && !pendingImage) || isProcessing) return;
 
         // Check Quota Logic
         if (!isAdmin) {
-            // Optimistic check based on UI, real check happens on backend usage increment
-            // Actually, we should check with backend before calling expensive AI?
-            // But we do backend increment after.
-            // Better: Call an endpoint to authorize the chat.
-            // Simplified: proceed, backend will track. If quota 0, user should have been blocked visually?
-            // Let's check status again before sending.
             try {
                 const statusRes = await fetch('/api/user/status', {
                     method: 'POST',
@@ -519,9 +535,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const welcome = document.querySelector('.welcome-message');
         if (welcome) welcome.style.display = 'none';
 
-        addMessageToUI(text, 'user');
-        chatHistory.push({ role: 'user', content: text });
+        // Capture current image state
+        const sentImage = pendingImage;
+
+        addMessageToUI(text, 'user', sentImage);
+        chatHistory.push({ role: 'user', content: text, image: sentImage });
+
         userInput.value = ''; userInput.style.height = 'auto';
+
+        // Clear pending image
+        pendingImage = null;
+        imagePreviewContainer.style.display = 'none';
+        imageInput.value = '';
+
         const loadingId = addLoading();
         saveCurrentChat();
 
@@ -531,7 +557,14 @@ document.addEventListener('DOMContentLoaded', () => {
             let prompt = text;
             if (selectedRepo) prompt = `[Context: Repository ${selectedRepo}]\n${text}`;
 
-            const response = await puter.ai.chat(prompt, { model: model });
+            let response;
+            if (sentImage) {
+                // Pass image as second argument if present
+                response = await puter.ai.chat(prompt, sentImage, { model: model });
+            } else {
+                response = await puter.ai.chat(prompt, { model: model });
+            }
+
             removeLoading(loadingId);
 
             let replyText = "No response.";
@@ -567,7 +600,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveCurrentChat() {
         const firstMsg = chatHistory.find(m => m.role === 'user');
         let title = 'New Chat';
-        if (firstMsg) title = firstMsg.content.substring(0, 30) + '...';
+        if (firstMsg) {
+            title = firstMsg.content ? (firstMsg.content.substring(0, 30) + '...') : 'Image Chat';
+        }
         const payload = { id: currentChatId, title: title, timestamp: Date.now(), messages: chatHistory, repo: selectedRepo, key: currentUserKey };
         try {
             await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -593,11 +628,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return safeText;
     }
 
-    function addMessageToUI(text, sender) {
+    function addMessageToUI(text, sender, image = null) {
         const div = document.createElement('div');
         div.className = `message ${sender}-message`;
-        if (sender === 'user') div.textContent = text; else div.innerHTML = parseMarkdown(text);
-        chatContainer.appendChild(div); scrollToBottom();
+
+        let contentHtml = '';
+
+        if (image) {
+            contentHtml += `<img src="${image}" class="message-image" alt="User Upload">`;
+        }
+
+        if (sender === 'user') {
+            contentHtml += escapeHtml(text).replace(/\n/g, '<br>');
+        } else {
+            contentHtml += parseMarkdown(text);
+        }
+
+        div.innerHTML = contentHtml;
+        chatContainer.appendChild(div);
+        scrollToBottom();
     }
 
     function addLoading() {
