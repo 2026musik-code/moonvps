@@ -83,8 +83,52 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', type: 'chat' },
         { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', type: 'chat' },
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', type: 'chat' },
-        { id: 'gemini-2.5-flash-image-preview', name: 'Gemini 2.5 Flash (Img2Img)', type: 'image' },
-        { id: 'ByteDance-Seed/Seedream-4.0', name: 'Seedream 4.0 (Image Gen)', type: 'image' }
+        // Image Generation Models
+        {
+            id: 'gemini-2.5-flash-image-preview',
+            name: 'Gemini 2.5 Flash (Img2Img)',
+            type: 'image',
+            // Uses standard behavior (no extra provider params needed for basic usage)
+        },
+        {
+            id: 'ByteDance-Seed/Seedream-4.0',
+            name: 'Seedream 4.0 (Image Gen)',
+            type: 'image',
+            options: {
+                provider: "together-ai",
+                disable_safety_checker: true,
+                width: 960,
+                height: 960,
+                seed: 42
+            }
+        },
+        {
+            id: 'google/imagen-4.0-ultra',
+            name: 'Imagen 4 Ultra',
+            type: 'image',
+            options: {
+                provider: "together-ai",
+                disable_safety_checker: true
+            }
+        },
+        {
+            id: 'google/imagen-4.0-fast',
+            name: 'Imagen 4 Fast',
+            type: 'image',
+            options: {
+                provider: "together-ai",
+                disable_safety_checker: true
+            }
+        },
+        {
+            id: 'google/imagen-4.0-preview',
+            name: 'Imagen 4 Preview',
+            type: 'image',
+            options: {
+                provider: "together-ai",
+                disable_safety_checker: true
+            }
+        }
     ];
     let selectedModel = 'claude-haiku-4-5';
 
@@ -594,60 +638,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (welcome) welcome.style.display = 'none';
 
         const sentImage = pendingImage;
-        const model = selectedModel; // Use JS variable, not select DOM
+        const modelId = selectedModel;
+        const modelObj = models.find(m => m.id === modelId);
 
-        // Image Generation Mode
-        if (model === 'ByteDance-Seed/Seedream-4.0') {
-            addMessageToUI(text, 'user');
-            chatHistory.push({ role: 'user', content: text });
-            userInput.value = ''; userInput.style.height = 'auto';
-            const loadingId = addLoading();
-            saveCurrentChat();
-
-            try {
-                if (typeof puter === 'undefined') throw new Error("Puter.js not loaded.");
-
-                // Call txt2img with specific Seedream params
-                const imageElement = await puter.ai.txt2img(text, {
-                    model: "ByteDance-Seed/Seedream-4.0",
-                    provider: "together-ai",
-                    disable_safety_checker: true,
-                    width: 960,
-                    height: 960,
-                    seed: 42 // Constant seed as per user request example (optional to randomize?)
-                             // Keeping consistent 42 for now per snippet, or random if user wants var
-                             // Snippet said "Same seed will produce consistent results".
-                             // Usually users want variety. Let's make it random but keep logic.
-                             // Actually, let's use Math.floor(Math.random() * 1000000)
-                });
-                removeLoading(loadingId);
-
-                if (imageElement && imageElement.src) {
-                    let imageSrc = imageElement.src;
-                    if (imageSrc.startsWith('blob:')) {
-                        const blob = await fetch(imageSrc).then(r => r.blob());
-                        const reader = new FileReader();
-                        imageSrc = await new Promise((resolve) => {
-                            reader.onload = () => resolve(reader.result);
-                            reader.readAsDataURL(blob);
-                        });
-                    }
-                    addMessageToUI("Generated Image:", 'ai', imageSrc);
-                    chatHistory.push({ role: 'ai', content: "Generated Image", image: imageSrc });
-                } else {
-                    addMessageToUI("Failed to generate image.", 'ai');
-                }
-                saveCurrentChat();
-                if (!isAdmin) await incrementUsage();
-            } catch (error) {
-                removeLoading(loadingId);
-                addMessageToUI(`Error: ${error.message}`, 'ai');
-            } finally { isProcessing = false; }
-            return;
-        }
-
-        // Image-to-Image / Other Image Preview models
-        if (model.includes('image-preview')) {
+        // Unified Image Generation Logic
+        if (modelObj && modelObj.type === 'image') {
             addMessageToUI(text, 'user', sentImage);
             chatHistory.push({ role: 'user', content: text, image: sentImage });
 
@@ -662,21 +657,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 if (typeof puter === 'undefined') throw new Error("Puter.js not loaded.");
+
                 let imageElement;
+                const genOptions = { model: modelId, ...(modelObj.options || {}) };
+
                 if (sentImage) {
+                    // Image-to-Image / Variation
                     const matches = sentImage.match(/^data:(.+);base64,(.+)$/);
                     if (matches) {
-                        imageElement = await puter.ai.txt2img(text, {
-                            model: model,
-                            input_image: matches[2],
-                            input_image_mime_type: matches[1]
-                        });
+                        genOptions.input_image = matches[2];
+                        genOptions.input_image_mime_type = matches[1];
+                        imageElement = await puter.ai.txt2img(text, genOptions);
                     } else throw new Error("Invalid image format");
                 } else {
-                    imageElement = await puter.ai.txt2img(text, { model: model });
+                    // Text-to-Image
+                    imageElement = await puter.ai.txt2img(text, genOptions);
                 }
 
                 removeLoading(loadingId);
+
                 if (imageElement && imageElement.src) {
                     let imageSrc = imageElement.src;
                     if (imageSrc.startsWith('blob:')) {
@@ -694,6 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 saveCurrentChat();
                 if (!isAdmin) await incrementUsage();
+
             } catch (error) {
                 removeLoading(loadingId);
                 addMessageToUI(`Error: ${error.message}`, 'ai');
@@ -720,9 +720,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let response;
             if (sentImage) {
-                response = await puter.ai.chat(prompt, sentImage, { model: model });
+                response = await puter.ai.chat(prompt, sentImage, { model: modelId });
             } else {
-                response = await puter.ai.chat(prompt, { model: model });
+                response = await puter.ai.chat(prompt, { model: modelId });
             }
 
             removeLoading(loadingId);
