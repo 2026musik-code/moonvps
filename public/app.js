@@ -536,20 +536,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const sentImage = pendingImage;
         const model = modelSelect.value;
 
-        // Image Generation Mode
-        if (model === 'gemini-3-pro-image-preview') {
-            addMessageToUI(text, 'user');
-            chatHistory.push({ role: 'user', content: text });
+        // Image Generation / Img2Img Mode
+        // We identify image generation models by name suffix or known list
+        if (model.includes('image-preview')) {
+            // It's a generation model (Text-to-Image OR Image-to-Image)
+
+            addMessageToUI(text, 'user', sentImage);
+            chatHistory.push({ role: 'user', content: text, image: sentImage });
 
             userInput.value = ''; userInput.style.height = 'auto';
             const loadingId = addLoading();
+
+            // Clear pending image preview UI
+            pendingImage = null;
+            imagePreviewContainer.style.display = 'none';
+            imageInput.value = '';
+
             saveCurrentChat();
 
             try {
                 if (typeof puter === 'undefined') throw new Error("Puter.js not loaded.");
 
-                // Call txt2img
-                const imageElement = await puter.ai.txt2img(text, { model: model });
+                let imageElement;
+
+                if (sentImage) {
+                    // Image-to-Image
+                    // Split Base64 Data URI: data:image/png;base64,iVB...
+                    const matches = sentImage.match(/^data:(.+);base64,(.+)$/);
+                    if (matches) {
+                        const mimeType = matches[1];
+                        const base64Data = matches[2];
+
+                        imageElement = await puter.ai.txt2img(text, {
+                            model: model,
+                            input_image: base64Data,
+                            input_image_mime_type: mimeType
+                        });
+                    } else {
+                        throw new Error("Invalid image format");
+                    }
+                } else {
+                    // Text-to-Image
+                    imageElement = await puter.ai.txt2img(text, { model: model });
+                }
+
                 removeLoading(loadingId);
 
                 if (imageElement && imageElement.src) {
@@ -583,7 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Standard Chat Mode
+        // Standard Chat Mode (with Vision if image present)
         addMessageToUI(text, 'user', sentImage);
         chatHistory.push({ role: 'user', content: text, image: sentImage });
 
