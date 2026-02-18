@@ -89,6 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'moonshotai/kimi-k2-0905', name: 'Kimi K2 0905', type: 'chat' },
         { id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', type: 'chat' },
         { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', type: 'chat' },
+        // Custom API Models
+        { id: 'ferdev-mistral', name: 'Mistral (FerDev)', type: 'custom-api' },
         // Image Generation Models
         {
             id: 'gemini-2.5-flash-image-preview',
@@ -530,17 +532,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const div = document.createElement('div');
             div.className = `history-item ${chat.id === currentChatId ? 'active' : ''}`;
 
-            // Create title span
             const titleSpan = document.createElement('span');
             titleSpan.innerHTML = `<i class="fa-regular fa-message"></i> ${chat.title || 'New Chat'}`;
 
-            // Create delete button
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-chat-btn';
             deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
             deleteBtn.title = "Delete Chat";
             deleteBtn.onclick = (e) => {
-                e.stopPropagation(); // Prevent chat load
+                e.stopPropagation();
                 deleteChat(chat.id);
             };
 
@@ -638,6 +638,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const sentImage = pendingImage;
         const modelId = selectedModel;
         const modelObj = models.find(m => m.id === modelId);
+
+        // Custom API Mode (Mistral)
+        if (modelObj && modelObj.type === 'custom-api') {
+            addMessageToUI(text, 'user', sentImage);
+            chatHistory.push({ role: 'user', content: text, image: sentImage });
+
+            userInput.value = ''; userInput.style.height = 'auto';
+            pendingImage = null;
+            imagePreviewContainer.style.display = 'none';
+            imageInput.value = '';
+
+            const loadingId = addLoading();
+            saveCurrentChat();
+
+            try {
+                // Call Custom API
+                const apiUrl = `https://api.ferdev.my.id/ai/mistral?prompt=${encodeURIComponent(text)}&apikey=dedi131`;
+                const res = await fetch(apiUrl);
+                const data = await res.json();
+
+                removeLoading(loadingId);
+
+                let replyText = "No response.";
+                if (data.success && data.message) {
+                    replyText = data.message;
+                } else if (data.message) {
+                    replyText = data.message;
+                } else {
+                    replyText = JSON.stringify(data);
+                }
+
+                addMessageToUI(replyText, 'ai');
+                chatHistory.push({ role: 'ai', content: replyText });
+                saveCurrentChat();
+
+                if (!isAdmin) await incrementUsage();
+
+            } catch (error) {
+                removeLoading(loadingId);
+                addMessageToUI(`Error: ${error.message}`, 'ai');
+            } finally { isProcessing = false; }
+            return;
+        }
 
         // Unified Image Generation Logic
         if (modelObj && modelObj.type === 'image') {
@@ -777,16 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function parseMarkdown(text) {
         // Use marked.js if available, otherwise fallback
         if (typeof marked !== 'undefined') {
-            // Configure marked for code blocks to add our buttons (post-process or custom renderer)
-            // Easier to post-process the HTML string
             let html = marked.parse(text);
-
-            // Inject buttons into <pre><code> blocks
-            // This is a simple regex replacement to wrap <pre>... in our structure
-            // Regex match <pre><code class="...">...</code></pre>
-            // We need to extract the language class
-
-            // Standard marked output: <pre><code class="language-js">...</code></pre>
 
             html = html.replace(/<pre><code class="language-([^"]+)">([\s\S]*?)<\/code><\/pre>/g, (match, lang, code) => {
                 return `
@@ -802,7 +836,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
             });
 
-            // Handle plain <pre><code> (no language)
             html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (match, code) => {
                 return `
                 <div class="code-block">
@@ -820,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return html;
         }
 
-        // Fallback (should not happen if CDN loads)
+        // Fallback
         let safeText = escapeHtml(text);
         const codeBlocks = [];
         safeText = safeText.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
