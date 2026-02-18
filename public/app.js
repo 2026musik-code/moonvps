@@ -90,7 +90,30 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', type: 'chat' },
         { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', type: 'chat' },
         // Custom API Models
-        { id: 'ferdev-mistral', name: 'Mistral (FerDev)', type: 'custom-api' },
+        {
+            id: 'ferdev-mistral',
+            name: 'Mistral (FerDev)',
+            type: 'custom-api',
+            endpoint: 'https://api.ferdev.my.id/ai/mistral'
+        },
+        {
+            id: 'ferdev-venice',
+            name: 'Venice (FerDev)',
+            type: 'custom-api',
+            endpoint: 'https://api.ferdev.my.id/ai/venice'
+        },
+        {
+            id: 'ferdev-felo',
+            name: 'Felo (FerDev)',
+            type: 'custom-api',
+            endpoint: 'https://api.ferdev.my.id/ai/felo'
+        },
+        {
+            id: 'ferdev-aicoding',
+            name: 'AICoding (FerDev)',
+            type: 'custom-api',
+            endpoint: 'https://api.ferdev.my.id/ai/aicoding'
+        },
         // Image Generation Models
         {
             id: 'gemini-2.5-flash-image-preview',
@@ -639,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const modelId = selectedModel;
         const modelObj = models.find(m => m.id === modelId);
 
-        // Custom API Mode (Mistral)
+        // Custom API Mode (Mistral, Venice, Felo, AICoding)
         if (modelObj && modelObj.type === 'custom-api') {
             addMessageToUI(text, 'user', sentImage);
             chatHistory.push({ role: 'user', content: text, image: sentImage });
@@ -654,7 +677,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 // Call Custom API
-                const apiUrl = `https://api.ferdev.my.id/ai/mistral?prompt=${encodeURIComponent(text)}&apikey=dedi131`;
+                const endpoint = modelObj.endpoint;
+                const apiUrl = `${endpoint}?prompt=${encodeURIComponent(text)}&apikey=dedi131`;
                 const res = await fetch(apiUrl);
                 const data = await res.json();
 
